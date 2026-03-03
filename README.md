@@ -1,4 +1,4 @@
-# Go Feed Engine
+# Event Feed Engine
 
 Event-Driven News Feed Backend built in Go.
 

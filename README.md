@@ -36,6 +36,9 @@ The system should be event-driven, concurrent and cache-aware, reflecting real-w
   6. Extensibility - system supports future additions.
 
 ## System design 
-![alt text](<Untitled diagram-2026-03-03-183540.png>)
+![alt text](<README_IMAGES/systemDesign.png>)
+
+## Database Schema
+![alt text](README_IMAGES\databaseSchema.png)
 
 This project is under active development.

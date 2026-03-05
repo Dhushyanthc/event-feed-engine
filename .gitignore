@@ -1,0 +1,32 @@
+# Environment variables
+.env
+
+# Go build outputs
+bin/
+build/
+dist/
+
+# Go test binary
+*.test
+
+# Go coverage reports
+*.out
+coverage.*
+
+# Go workspace files
+go.work
+go.work.sum
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor directories
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Temporary files
+tmp/

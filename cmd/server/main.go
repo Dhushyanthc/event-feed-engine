@@ -32,11 +32,16 @@ func main(){
 	//Initialize the User repository 
 	userRepo := repository.NewUserRepository(db)
 	postRepo := repository.NewPostRepository(db)
+	followRepo := repository.NewFollowRepository(db)
+	feedRepo := repository.NewFeedRepository(db)
+
 
 	//Initialize User handler
 	userHandler := handlers.NewUserHandler(userRepo)
 	loginHandler := handlers.NewLoginHandler(userRepo)
 	postHandler := handlers.NewPostHandler(postRepo)
+	followHandler := handlers.NewFollowHandler(followRepo)
+	feedHandler := handlers.NewFeedHandler(feedRepo, postRepo)
 
 	//start the http server
 	mux:= http.NewServeMux()
@@ -45,6 +50,11 @@ func main(){
 	mux.HandleFunc("/users", userHandler.CreateUser)
 	mux.HandleFunc("/login", loginHandler.Login)
 	mux.HandleFunc("/posts", middleware.AuthMiddleware(postHandler.CreatePost))
+	mux.HandleFunc("/feed", middleware.AuthMiddleware(feedHandler.GetFeed))
+	mux.HandleFunc("/follow", middleware.AuthMiddleware(followHandler.FollowUser))
+	mux.HandleFunc("/unfollow", middleware.AuthMiddleware(followHandler.UnfollowUser))
+	mux.HandleFunc("/followers", middleware.AuthMiddleware(followHandler.GetFollowers))
+	mux.HandleFunc("/following", middleware.AuthMiddleware(followHandler.GetFollowing))
 
 	//Start the server
 	log.Printf("Starting server on port %s\n", cfg.Port)

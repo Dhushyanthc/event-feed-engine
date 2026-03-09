@@ -33,3 +33,50 @@ func (r *PostRepository) CreatePost(ctx context.Context, post *models.Post) erro
 	return err
 
 }
+
+////////////////////////////////////////////////////
+func (r *PostRepository) GetPostsByIDs(
+	ctx context.Context,
+	postIDs []int64,
+) ([]*models.Post, error) {
+
+	query := `
+	SELECT id, user_id, content, media_url, created_at
+	FROM posts
+	WHERE id = ANY($1)
+	ORDER BY created_at DESC
+	`
+
+	rows, err := r.db.Query(ctx, query, postIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var posts []*models.Post
+
+	for rows.Next() {
+
+		post := &models.Post{}
+
+		err := rows.Scan(
+			&post.Id,
+			&post.UserId,
+			&post.Content,
+			&post.MediaURL,
+			&post.CreatedAt,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		posts = append(posts, post)
+	}
+
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+
+	return posts, nil
+}

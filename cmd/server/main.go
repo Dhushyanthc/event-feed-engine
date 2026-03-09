@@ -1,7 +1,6 @@
 package main
 
 import (
-	
 	"fmt"
 	"log"
 	"net/http"
@@ -9,6 +8,7 @@ import (
 	"github.com/Dhushyanthc/event-feed-engine/internal/config"
 	"github.com/Dhushyanthc/event-feed-engine/internal/database"
 	"github.com/Dhushyanthc/event-feed-engine/internal/handlers"
+	"github.com/Dhushyanthc/event-feed-engine/internal/middleware"
 	"github.com/Dhushyanthc/event-feed-engine/internal/repository"
 )
 
@@ -31,10 +31,12 @@ func main(){
 
 	//Initialize the User repository 
 	userRepo := repository.NewUserRepository(db)
+	postRepo := repository.NewPostRepository(db)
 
 	//Initialize User handler
 	userHandler := handlers.NewUserHandler(userRepo)
 	loginHandler := handlers.NewLoginHandler(userRepo)
+	postHandler := handlers.NewPostHandler(postRepo)
 
 	//start the http server
 	mux:= http.NewServeMux()
@@ -42,6 +44,7 @@ func main(){
 	//Register route
 	mux.HandleFunc("/users", userHandler.CreateUser)
 	mux.HandleFunc("/login", loginHandler.Login)
+	mux.HandleFunc("/posts", middleware.AuthMiddleware(postHandler.CreatePost))
 
 	//Start the server
 	log.Printf("Starting server on port %s\n", cfg.Port)

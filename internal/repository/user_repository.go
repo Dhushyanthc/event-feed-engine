@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/Dhushyanthc/event-feed-engine/internal/models"
@@ -11,7 +12,7 @@ import (
 type UserRepository struct {
 	db *pgxpool.Pool
 }
-func NewUserRepository(db*pgxpool.Pool) *UserRepository {
+func NewUserRepository(db *pgxpool.Pool) *UserRepository {
 	return &UserRepository{db: db}
 }
 
@@ -32,4 +33,37 @@ func (r *UserRepository) CreateUser(ctx context.Context,user *models.User) error
 			&user.Id,
 			&user.CreatedAt,
 		)
+}
+
+
+
+//new method 
+///////////////////////////////////////////
+//retrieve user by email
+func (r *UserRepository) GetUserByEmail (ctx context.Context, email string) (User *models.User, err error){
+
+	if email == ""{
+		return nil, errors.New("email is required")
+	}
+
+
+	// query
+	query:= `SELECT id, name, email, password_hash, created_at FROM users WHERE email = $1`
+
+	User = &models.User{}
+
+	Err := r.db.QueryRow(ctx, query, email).Scan(
+		&User.Id,
+		&User.Name,
+		&User.Email,
+		&User.PasswordHash,
+		&User.CreatedAt,
+	)
+
+	if Err != nil {
+		return nil, Err
+	}
+
+
+	return User, nil
 }

@@ -1,15 +1,15 @@
 package main
 
 import (
-	"context"
+	
 	"fmt"
 	"log"
+	"net/http"
 
 	"github.com/Dhushyanthc/event-feed-engine/internal/config"
 	"github.com/Dhushyanthc/event-feed-engine/internal/database"
-	"github.com/Dhushyanthc/event-feed-engine/internal/models"
+	"github.com/Dhushyanthc/event-feed-engine/internal/handlers"
 	"github.com/Dhushyanthc/event-feed-engine/internal/repository"
-	// "github.com/Dhushyanthc/event-feed-engine/internal/database"
 )
 
 func main(){
@@ -32,20 +32,25 @@ func main(){
 	//Initialize the User repository 
 	userRepo := repository.NewUserRepository(db)
 
-	// example user 
-	user := models.User{
-		Name: "Dhanush",
-		Email: "abc@gmail.com",
-		PasswordHash: "hashed_password",
-	}
+	//Initialize User handler
+	userHandler := handlers.NewUserHandler(userRepo)
+	loginHandler := handlers.NewLoginHandler(userRepo)
 
-	// Create user in the database
-	err = userRepo.CreateUser(context.Background(), &user)
+	//start the http server
+	mux:= http.NewServeMux()
+
+	//Register route
+	mux.HandleFunc("/users", userHandler.CreateUser)
+	mux.HandleFunc("/login", loginHandler.Login)
+
+	//Start the server
+	log.Printf("Starting server on port %s\n", cfg.Port)
+	err = http.ListenAndServe(":"+cfg.Port, mux)
 	if err != nil {
-		log.Fatal("Failed to create user:", err)
+		log.Fatal("Failed to start server:", err)
 	}
-	fmt.Println("User created successfully", user.Id)
 
 
+	
 	
 }

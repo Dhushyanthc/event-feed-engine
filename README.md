@@ -39,6 +39,6 @@ The system should be event-driven, concurrent and cache-aware, reflecting real-w
 ![alt text](<README_IMAGES/systemDesign.png>)
 
 ## Database Schema
-![alt text](README_IMAGES\databaseSchema.png)
+![alt text](<README_IMAGES\databaseSchema.png>)
 
 This project is under active development.

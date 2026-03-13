@@ -1,8 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/Dhushyanthc/event-feed-engine/internal/config"
 	"github.com/Dhushyanthc/event-feed-engine/internal/database"
@@ -72,9 +77,34 @@ func main(){
 
 	//Start the server
 	zapLogger.Info("Starting server", zap.String("port", cfg.Port))
-	err = http.ListenAndServe(":"+cfg.Port, mux)
-	if err != nil {
-		zapLogger.Fatal("Failed to start server", zap.Error(err))
+
+
+	server := &http.Server{
+		Addr: ":"+cfg.Port,
+		Handler: mux,
 	}
 
+	go func(){
+	err = server.ListenAndServe()
+	if err != nil && err != http.ErrServerClosed{
+		zapLogger.Fatal("failed to start the server", zap.Error(err))
+	}
+}()
+
+quit := make(chan os.Signal, 1)
+
+signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+<-quit
+
+zapLogger.Info("shutdown signal recieved")
+
+ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+defer cancel()
+
+if err := server.Shutdown(ctx); err != nil{
+	zapLogger.Fatal("server forced to shutdown", zap.Error(err))
+}
+
+zapLogger.Info("server exited properly")
 }

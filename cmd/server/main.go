@@ -1,15 +1,16 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/Dhushyanthc/event-feed-engine/internal/config"
 	"github.com/Dhushyanthc/event-feed-engine/internal/database"
 	"github.com/Dhushyanthc/event-feed-engine/internal/handlers"
+	"github.com/Dhushyanthc/event-feed-engine/internal/logger"
 	"github.com/Dhushyanthc/event-feed-engine/internal/middleware"
 	"github.com/Dhushyanthc/event-feed-engine/internal/repository"
+	"go.uber.org/zap"
 )
 
 func main(){
@@ -19,15 +20,21 @@ func main(){
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("Configuration Loaded and App envirnment:", cfg.AppEnv)
+	
 
+
+	zapLogger, err := logger.NewLogger()
+	if err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer zapLogger.Sync()
 
 	//Initailize the database connection
 	db,err := database.NewPostgres(cfg.DatabaseUrl)
 	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		zapLogger.Fatal("Failed to connect to database", zap.Error(err))
 	}
-	fmt.Println("Database is connected successfully")
+	zapLogger.Info("Database connected")
 
 	//Initialize the User repository 
 	userRepo := repository.NewUserRepository(db)
@@ -47,23 +54,27 @@ func main(){
 	mux:= http.NewServeMux()
 
 	//Register route
-	mux.HandleFunc("/users", userHandler.CreateUser)
-	mux.HandleFunc("/login", loginHandler.Login)
-	mux.HandleFunc("/posts", middleware.AuthMiddleware(postHandler.CreatePost))
-	mux.HandleFunc("/feed", middleware.AuthMiddleware(feedHandler.GetFeed))
-	mux.HandleFunc("/follow", middleware.AuthMiddleware(followHandler.FollowUser))
-	mux.HandleFunc("/unfollow", middleware.AuthMiddleware(followHandler.UnfollowUser))
-	mux.HandleFunc("/followers", middleware.AuthMiddleware(followHandler.GetFollowers))
-	mux.HandleFunc("/following", middleware.AuthMiddleware(followHandler.GetFollowing))
+	mux.HandleFunc("/users", middleware.LoggingMiddleware(zapLogger,userHandler.CreateUser))
+
+	mux.HandleFunc("/login", middleware.LoggingMiddleware(zapLogger,loginHandler.Login))
+
+	mux.HandleFunc("/posts", middleware.LoggingMiddleware(zapLogger,middleware.AuthMiddleware(postHandler.CreatePost)))
+
+	mux.HandleFunc("/feed", middleware.LoggingMiddleware(zapLogger,middleware.AuthMiddleware(feedHandler.GetFeed)))
+
+	mux.HandleFunc("/follow", middleware.LoggingMiddleware(zapLogger,middleware.AuthMiddleware(followHandler.FollowUser)))
+
+	mux.HandleFunc("/unfollow",middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(followHandler.UnfollowUser)))
+
+	mux.HandleFunc("/followers",middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(followHandler.GetFollowers)))
+	
+	mux.HandleFunc("/following", middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(followHandler.GetFollowing)))
 
 	//Start the server
-	log.Printf("Starting server on port %s\n", cfg.Port)
+	zapLogger.Info("Starting server", zap.String("port", cfg.Port))
 	err = http.ListenAndServe(":"+cfg.Port, mux)
 	if err != nil {
-		log.Fatal("Failed to start server:", err)
+		zapLogger.Fatal("Failed to start server", zap.Error(err))
 	}
 
-
-	
-	
 }

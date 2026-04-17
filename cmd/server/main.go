@@ -16,6 +16,7 @@ import (
 	"github.com/Dhushyanthc/event-feed-engine/internal/middleware"
 	"github.com/Dhushyanthc/event-feed-engine/internal/repository"
 	"go.uber.org/zap"
+	"github.com/Dhushyanthc/event-feed-engine/internal/feed"
 )
 
 func main(){
@@ -41,17 +42,37 @@ func main(){
 	}
 	zapLogger.Info("Database connected")
 
+
+	//Initialize redis 
+	redisClient, err := database.NewRedisClient(cfg.RedisUrl)
+	if err != nil {
+		zapLogger.Fatal("failed to connect to redis", zap.Error(err))
+	}
+	zapLogger.Info("redis connected")
+
 	//Initialize the User repository 
 	userRepo := repository.NewUserRepository(db)
 	postRepo := repository.NewPostRepository(db)
 	followRepo := repository.NewFollowRepository(db)
-	feedRepo := repository.NewFeedRepository(db)
+	feedRepo := repository.NewFeedRepository(db, redisClient)
+
+	// Initialize event queue and worker
+eventQueue := feed.NewEventQueue(100)
+fanoutSvc := feed.NewFeedFanout(followRepo, feedRepo)
+dlq := feed.NewDeadLetterQueue(100)
+dlqWorker := feed.NewDLQWorker(dlq, zapLogger, fanoutSvc)
+worker := feed.NewWorker(eventQueue,dlq, fanoutSvc)
+
+
+// start worker
+go worker.Start(context.Background())
+go dlqWorker.Start(context.Background())
 
 
 	//Initialize User handler
 	userHandler := handlers.NewUserHandler(userRepo)
 	loginHandler := handlers.NewLoginHandler(userRepo)
-	postHandler := handlers.NewPostHandler(postRepo)
+	postHandler := handlers.NewPostHandler(postRepo, eventQueue)
 	followHandler := handlers.NewFollowHandler(followRepo)
 	feedHandler := handlers.NewFeedHandler(feedRepo, postRepo)
 

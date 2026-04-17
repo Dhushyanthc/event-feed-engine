@@ -48,9 +48,5 @@ func (s *FeedFanout) FanoutPost(ctx context.Context, event *PostCreatedEvent) er
 			return err
 		}
 }
-
-		
-
-
 	return nil	
 }

@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	projectdb "github.com/Dhushyanthc/event-feed-engine/db"
 	"github.com/Dhushyanthc/event-feed-engine/internal/config"
 	"github.com/Dhushyanthc/event-feed-engine/internal/database"
 	"github.com/Dhushyanthc/event-feed-engine/internal/feed"
@@ -40,6 +41,11 @@ func main() {
 	}
 	zapLogger.Info("Database connected")
 
+	if err := projectdb.RunMigrations(context.Background(), db); err != nil {
+		zapLogger.Fatal("failed to run migrations", zap.Error(err))
+	}
+	zapLogger.Info("Database migrations applied")
+
 	//Initialize redis
 	redisClient, err := database.NewRedisClient(cfg.RedisUrl)
 	if err != nil {
@@ -53,6 +59,8 @@ func main() {
 	followRepo := repository.NewFollowRepository(db)
 	feedRepo := repository.NewFeedRepository(db, redisClient)
 	eventRepo := repository.NewEventRepository(db)
+
+	rateLimiter := middleware.RateLimitMiddleware(redisClient, 10, time.Minute)
 
 	// Initialize event queue and worker
 	eventQueue := feed.NewEventQueue(100)
@@ -80,13 +88,25 @@ func main() {
 	//Register route
 	mux.HandleFunc("/users", middleware.LoggingMiddleware(zapLogger, userHandler.CreateUser))
 
-	mux.HandleFunc("/login", middleware.LoggingMiddleware(zapLogger, loginHandler.Login))
+	mux.HandleFunc("/login", rateLimiter(
+		middleware.LoggingMiddleware(zapLogger,
+			loginHandler.Login,
+		),
+	),)
 
-	mux.HandleFunc("/posts", middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(postHandler.CreatePost)))
+	mux.HandleFunc("/posts", rateLimiter(
+		middleware.LoggingMiddleware(zapLogger,
+			middleware.AuthMiddleware(postHandler.CreatePost),
+		),
+	),)
 
 	mux.HandleFunc("/feed", middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(feedHandler.GetFeed)))
 
-	mux.HandleFunc("/follow", middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(followHandler.FollowUser)))
+	mux.HandleFunc("/follow", rateLimiter(
+		middleware.LoggingMiddleware(zapLogger,
+			middleware.AuthMiddleware(followHandler.FollowUser),
+		),
+	),)
 
 	mux.HandleFunc("/unfollow", middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(followHandler.UnfollowUser)))
 

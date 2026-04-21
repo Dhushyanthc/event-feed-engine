@@ -42,3 +42,29 @@ The system should be event-driven, concurrent and cache-aware, reflecting real-w
 ![alt text](<README_IMAGES\databaseSchema.png>)
 
 This project is under active development.
+
+## Docker
+
+Run the full stack with Docker Compose:
+
+```bash
+docker compose up --build
+```
+
+Services:
+- API: `http://localhost:8081`
+- Postgres: `localhost:5432`
+- Redis: `localhost:6379`
+
+Notes:
+- The app container reads `APP_ENV`, `PORT`, `DATABASE_URL`, and `REDIS_URL` from Compose.
+- Database migrations in `db/migrations` are mounted into Postgres and applied automatically on first startup.
+- The app no longer requires a local `.env` file when those environment variables are provided by Docker.
+- If you add a new migration after Postgres data already exists, it will not run automatically from `/docker-entrypoint-initdb.d`. Apply it manually or recreate the database volume with `docker compose down -v` and then `docker compose up --build`.
+
+Smoke test:
+
+```powershell
+docker compose up --build
+./scripts/smoke_test.ps1
+```

@@ -1,4 +1,4 @@
-CREATE TABLE posts (
+CREATE TABLE IF NOT EXISTS posts (
   id BIGSERIAL PRIMARY KEY,
   user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   content TEXT,
@@ -6,4 +6,4 @@ CREATE TABLE posts (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_post_user_time ON posts(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_post_user_time ON posts(user_id, created_at DESC);

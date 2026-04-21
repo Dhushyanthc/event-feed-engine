@@ -1,0 +1,9 @@
+.git
+.gocache
+.env
+server.exe
+README_IMAGES
+*.log
+*.tmp
+bin
+dist

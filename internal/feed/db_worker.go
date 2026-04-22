@@ -8,6 +8,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const maxDBFanoutAttempts = 5
+
 type DBWorker struct {
 	eventRepo *repository.EventRepository
 	fanoutSvc *FeedFanout
@@ -64,6 +66,7 @@ func (w *DBWorker) processBatch(ctx context.Context) {
 	}
 
 	var successfulEvents []int64
+	failedEvents := make(map[int64]error)
 
 	for _, event := range events {
 
@@ -76,6 +79,7 @@ func (w *DBWorker) processBatch(ctx context.Context) {
 		err := w.fanoutSvc.FanoutPost(ctx, e)
 		if err != nil {
 			w.logger.Error("fanout failed", zap.Error(err))
+			failedEvents[event.ID] = err
 			continue
 		}
 
@@ -93,6 +97,15 @@ func (w *DBWorker) processBatch(ctx context.Context) {
 		if err != nil {
 			tx2.Rollback(ctx)
 			w.logger.Error("failed to mark processed", zap.Error(err))
+			return
+		}
+	}
+
+	for id, fanoutErr := range failedEvents {
+		err := w.eventRepo.MarkFailedTx(ctx, tx2, id, fanoutErr.Error(), maxDBFanoutAttempts)
+		if err != nil {
+			tx2.Rollback(ctx)
+			w.logger.Error("failed to mark failed event", zap.Error(err))
 			return
 		}
 	}

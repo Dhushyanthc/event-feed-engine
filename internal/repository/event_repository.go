@@ -17,6 +17,7 @@ type FeedEvent struct {
 	PostID    int64
 	UserID    int64
 	CreatedAt time.Time
+	Attempts  int
 }
 
 func NewEventRepository(db *pgxpool.Pool) *EventRepository {
@@ -37,11 +38,22 @@ func (r *EventRepository) CreateEvent(ctx context.Context, postID, userID int64)
 	return err
 }
 
+func (r *EventRepository) CreateEventTx(ctx context.Context, tx pgx.Tx, postID, userID int64, createdAt time.Time) error {
+	query := `
+	INSERT INTO feed_events (post_id, user_id, created_at, processed)
+	VALUES ($1, $2, $3, FALSE)
+	`
+
+	_, err := tx.Exec(ctx, query, postID, userID, createdAt)
+	return err
+}
+
 func (r *EventRepository) GetUnprocessedEvents(ctx context.Context, limit int) ([]*FeedEvent, error) {
 	query := `
-	SELECT id, post_id, user_id, created_at
+	SELECT id, post_id, user_id, created_at, attempts
 	FROM feed_events
 	WHERE processed = FALSE
+	AND failed = FALSE
 	ORDER BY created_at ASC
 	LIMIT $1
 	FOR UPDATE SKIP LOCKED
@@ -57,7 +69,7 @@ func (r *EventRepository) GetUnprocessedEvents(ctx context.Context, limit int) (
 
 	for rows.Next() {
 		var e FeedEvent
-		err := rows.Scan(&e.ID, &e.PostID, &e.UserID, &e.CreatedAt)
+		err := rows.Scan(&e.ID, &e.PostID, &e.UserID, &e.CreatedAt, &e.Attempts)
 		if err != nil {
 			return nil, err
 		}
@@ -80,9 +92,10 @@ func (r *EventRepository) MarkProcessed(ctx context.Context, eventID int64) erro
 
 func (r *EventRepository) GetUnprocessedEventsTx(ctx context.Context, tx pgx.Tx, limit int) ([]*FeedEvent, error) {
 	query := `
-	SELECT id, post_id, user_id, created_at
+	SELECT id, post_id, user_id, created_at, attempts
 	FROM feed_events
 	WHERE processed = FALSE
+	AND failed = FALSE
   	AND (
     	processing = FALSE
     	OR updated_at < NOW() - INTERVAL '30 seconds'
@@ -102,7 +115,7 @@ func (r *EventRepository) GetUnprocessedEventsTx(ctx context.Context, tx pgx.Tx,
 
 	for rows.Next() {
 		var e FeedEvent
-		if err := rows.Scan(&e.ID, &e.PostID, &e.UserID, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.PostID, &e.UserID, &e.CreatedAt, &e.Attempts); err != nil {
 			return nil, err
 		}
 		events = append(events, &e)
@@ -115,10 +128,25 @@ func (r *EventRepository) MarkProcessingTx(ctx context.Context, tx pgx.Tx, event
 	query := `
 	UPDATE feed_events
 	SET processing = TRUE,
+	    attempts = attempts + 1,
 	    updated_at = NOW()
 	WHERE id = $1
 	`
 	_, err := tx.Exec(ctx, query, eventID)
+	return err
+}
+
+func (r *EventRepository) MarkFailedTx(ctx context.Context, tx pgx.Tx, eventID int64, lastError string, maxAttempts int) error {
+	query := `
+	UPDATE feed_events
+	SET processing = FALSE,
+	    failed = attempts >= $2,
+	    last_error = LEFT($3, 1000),
+	    updated_at = NOW()
+	WHERE id = $1
+	`
+
+	_, err := tx.Exec(ctx, query, eventID, maxAttempts, lastError)
 	return err
 }
 

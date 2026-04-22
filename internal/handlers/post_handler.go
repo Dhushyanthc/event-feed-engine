@@ -4,21 +4,20 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/Dhushyanthc/event-feed-engine/internal/feed"
 	"github.com/Dhushyanthc/event-feed-engine/internal/middleware"
 	"github.com/Dhushyanthc/event-feed-engine/internal/models"
 	"github.com/Dhushyanthc/event-feed-engine/internal/repository"
 )
 
 type PostHandler struct {
-	repo       *repository.PostRepository
-	eventQueue *feed.EventQueue
+	repo      *repository.PostRepository
+	eventRepo *repository.EventRepository
 }
 
-func NewPostHandler(repo *repository.PostRepository, queue *feed.EventQueue) *PostHandler {
+func NewPostHandler(repo *repository.PostRepository, eventRepo *repository.EventRepository) *PostHandler {
 	return &PostHandler{
-		repo:       repo,
-		eventQueue: queue,
+		repo:      repo,
+		eventRepo: eventRepo,
 	}
 }
 
@@ -68,19 +67,29 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 		MediaURL: req.MediaURL,
 	}
 
-	err = h.repo.CreatePost(r.Context(), post)
+	tx, err := h.eventRepo.BeginTx(r.Context())
+	if err != nil {
+		http.Error(w, "Failed to create post", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback(r.Context())
+
+	err = h.repo.CreatePostTx(r.Context(), tx, post)
 	if err != nil {
 		http.Error(w, "Failed to create post", http.StatusInternalServerError)
 		return
 	}
 
-	event := &feed.PostCreatedEvent{
-		PostID:    post.Id,
-		UserID:    post.UserId,
-		CreatedAt: post.CreatedAt,
+	err = h.eventRepo.CreateEventTx(r.Context(), tx, post.Id, post.UserId, post.CreatedAt)
+	if err != nil {
+		http.Error(w, "Failed to enqueue fanout job", http.StatusInternalServerError)
+		return
 	}
 
-	h.eventQueue.Publish(event)
+	if err := tx.Commit(r.Context()); err != nil {
+		http.Error(w, "Failed to create post", http.StatusInternalServerError)
+		return
+	}
 
 	resp := PostResponse{
 		Id:        post.Id,

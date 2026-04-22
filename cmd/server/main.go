@@ -62,23 +62,20 @@ func main() {
 
 	rateLimiter := middleware.RateLimitMiddleware(redisClient, 10, time.Minute)
 
-	// Initialize event queue and worker
-	eventQueue := feed.NewEventQueue(100)
+	// Initialize feed fanout workers
 	fanoutSvc := feed.NewFeedFanout(followRepo, feedRepo)
 	dlq := feed.NewDeadLetterQueue(100)
 	dlqWorker := feed.NewDLQWorker(dlq, zapLogger, fanoutSvc)
-	worker := feed.NewWorker(eventQueue, dlq, fanoutSvc)
 	dbWorker := feed.NewDBWorker(eventRepo, fanoutSvc, zapLogger)
 
-	// start worker
-	go worker.Start(context.Background())
+	// start workers
 	go dbWorker.Start(context.Background())
 	go dlqWorker.Start(context.Background())
 
 	//Initialize User handler
 	userHandler := handlers.NewUserHandler(userRepo)
 	loginHandler := handlers.NewLoginHandler(userRepo)
-	postHandler := handlers.NewPostHandler(postRepo, eventQueue)
+	postHandler := handlers.NewPostHandler(postRepo, eventRepo)
 	followHandler := handlers.NewFollowHandler(followRepo)
 	feedHandler := handlers.NewFeedHandler(feedRepo, postRepo)
 

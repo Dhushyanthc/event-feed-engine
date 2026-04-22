@@ -1,5 +1,6 @@
 param(
-    [string]$BaseUrl = "http://localhost:8081"
+    [string]$BaseUrl = "http://localhost:8081",
+    [switch]$SkipDbQueueCheck
 )
 
 $ErrorActionPreference = "Stop"
@@ -85,6 +86,31 @@ function Invoke-ExpectedStatus {
     }
 }
 
+function Invoke-PostgresScalar {
+    param(
+        [string]$Sql
+    )
+
+    $output = docker compose exec -T postgres psql `
+        -U postgres `
+        -d event_feed_engine `
+        -t `
+        -A `
+        -F "," `
+        -c $Sql
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "PostgreSQL query failed."
+    }
+
+    $line = $output | Where-Object { $_ -and $_.Trim() -ne "" } | Select-Object -First 1
+    if (-not $line) {
+        return $null
+    }
+
+    return $line.Trim()
+}
+
 $stamp = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
 $password = "pass1234"
 $wrongPassword = "wrong-pass"
@@ -135,12 +161,42 @@ $post = Invoke-ApiJson -Method Post -Uri "$BaseUrl/posts" -Headers $bobHeaders -
     media_url = ""
 }
 
-Start-Sleep -Seconds 1
+$feed = $null
+$feedPosts = @()
+$match = $null
 
-$feed = Invoke-ApiJson -Method Get -Uri "$BaseUrl/feed" -Headers $aliceHeaders
+for ($attempt = 1; $attempt -le 20; $attempt++) {
+    $feed = Invoke-ApiJson -Method Get -Uri "$BaseUrl/feed" -Headers $aliceHeaders
 
-$feedPosts = @($feed.posts)
-$match = $feedPosts | Where-Object { $_.id -eq $post.id }
+    $feedPosts = @($feed.posts)
+    $match = $feedPosts | Where-Object { $_.id -eq $post.id }
+
+    if ($match) {
+        break
+    }
+
+    Start-Sleep -Milliseconds 500
+}
+
+$feedEventState = $null
+if (-not $SkipDbQueueCheck) {
+    for ($attempt = 1; $attempt -le 20; $attempt++) {
+        $feedEventState = Invoke-PostgresScalar -Sql @"
+SELECT processed, failed, attempts
+FROM feed_events
+WHERE post_id = $($post.id)
+  AND user_id = $($bob.id)
+ORDER BY id DESC
+LIMIT 1;
+"@
+
+        if ($feedEventState -and $feedEventState.StartsWith("t,")) {
+            break
+        }
+
+        Start-Sleep -Milliseconds 500
+    }
+}
 
 $unauthorizedFeed = Invoke-ExpectedStatus -Method Get -Uri "$BaseUrl/feed" -ExpectedStatus 401
 $wrongPasswordLogin = Invoke-ExpectedStatus -Method Post -Uri "$BaseUrl/login" -ExpectedStatus 401 -Body @{
@@ -189,6 +245,10 @@ Assert ([bool]$bobLogin.token) "Bob login did not return a token."
 Assert ($follow.following_id -eq $bob.id) "Follow request did not target Bob."
 Assert ($post.content -eq $postContent) "Created post content did not match the request."
 Assert ([bool]$match) "Smoke test failed: created post was not found in follower feed."
+if (-not $SkipDbQueueCheck) {
+    Assert ([bool]$feedEventState) "Smoke test failed: no feed_events row was found for the created post."
+    Assert ($feedEventState.StartsWith("t,")) "Smoke test failed: feed_events row was not processed. State: $feedEventState"
+}
 Assert ($unauthorizedFeed.StatusCode -eq 401) "Expected /feed without auth to return 401."
 Assert ($wrongPasswordLogin.StatusCode -eq 401) "Expected /login with wrong password to return 401."
 Assert ($selfFollow.StatusCode -eq 400) "Expected self-follow to return 400."
@@ -201,6 +261,7 @@ Assert ($emptyPost.StatusCode -eq 400) "Expected empty post creation to return 4
     post = $post
     feed_post_count = $feedPosts.Count
     post_found_in_feed = [bool]$match
+    feed_event_state = $feedEventState
     unauthorized_feed_status = $unauthorizedFeed.StatusCode
     wrong_password_status = $wrongPasswordLogin.StatusCode
     self_follow_status = $selfFollow.StatusCode

@@ -8,10 +8,11 @@ import (
 )
 
 type Config struct {
-	AppEnv string
-	Port string
-	RedisUrl string
+	AppEnv      string
+	Port        string
+	RedisUrl    string
 	DatabaseUrl string
+	JWTSecret   string
 }
 
 func LoadConfig() (*Config, error) {
@@ -20,10 +21,11 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 	cfg := &Config{
-		AppEnv: os.Getenv("APP_ENV"),
-		Port : os.Getenv("PORT"),
-		RedisUrl: os.Getenv("REDIS_URL"),
+		AppEnv:      os.Getenv("APP_ENV"),
+		Port:        os.Getenv("PORT"),
+		RedisUrl:    os.Getenv("REDIS_URL"),
 		DatabaseUrl: os.Getenv("DATABASE_URL"),
+		JWTSecret:   os.Getenv("JWT_SECRET"),
 	}
 	return cfg, nil
 }

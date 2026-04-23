@@ -12,10 +12,14 @@ import (
 
 
 type LoginHandler struct {
-	repo *repository.UserRepository
+	repo      *repository.UserRepository
+	jwtSecret string
 }
-func NewLoginHandler(repo *repository.UserRepository) *LoginHandler {
-	return &LoginHandler{repo: repo}
+func NewLoginHandler(repo *repository.UserRepository, jwtSecret string) *LoginHandler {
+	return &LoginHandler{
+		repo:      repo,
+		jwtSecret: jwtSecret,
+	}
 }
 
 
@@ -57,11 +61,11 @@ func (h *LoginHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//generate a JWT token
-	token, err := auth.GenerateJWT(user.Id)
-if err != nil {
-	http.Error(w, "Failed to generate token", http.StatusInternalServerError)
-	return
-}
+	token, err := auth.GenerateJWT(user.Id, h.jwtSecret)
+	if err != nil {
+		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
+		return
+	}
 
 	// if the password is correct, generate a JWT token and return it in the response
 	resp := struct {

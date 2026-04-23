@@ -74,7 +74,7 @@ func main() {
 
 	//Initialize User handler
 	userHandler := handlers.NewUserHandler(userRepo)
-	loginHandler := handlers.NewLoginHandler(userRepo)
+	loginHandler := handlers.NewLoginHandler(userRepo, cfg.JWTSecret)
 	postHandler := handlers.NewPostHandler(postRepo, eventRepo)
 	followHandler := handlers.NewFollowHandler(followRepo)
 	feedHandler := handlers.NewFeedHandler(feedRepo, postRepo)
@@ -98,33 +98,33 @@ mux.HandleFunc("/login", middleware.CORSMiddleware(
 mux.HandleFunc("/posts", middleware.CORSMiddleware(
     rateLimiter(
         middleware.LoggingMiddleware(zapLogger,
-            middleware.AuthMiddleware(postHandler.CreatePost),
+            middleware.AuthMiddleware(cfg.JWTSecret, postHandler.CreatePost),
         ),
     ),
 ))
 
 mux.HandleFunc("/feed", middleware.CORSMiddleware(
-    middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(feedHandler.GetFeed)),
+    middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(cfg.JWTSecret, feedHandler.GetFeed)),
 ))
 
 mux.HandleFunc("/follow", middleware.CORSMiddleware(
     rateLimiter(
         middleware.LoggingMiddleware(zapLogger,
-            middleware.AuthMiddleware(followHandler.FollowUser),
+            middleware.AuthMiddleware(cfg.JWTSecret, followHandler.FollowUser),
         ),
     ),
 ))
 
 mux.HandleFunc("/unfollow", middleware.CORSMiddleware(
-    middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(followHandler.UnfollowUser)),
+    middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(cfg.JWTSecret, followHandler.UnfollowUser)),
 ))
 
 mux.HandleFunc("/followers", middleware.CORSMiddleware(
-    middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(followHandler.GetFollowers)),
+    middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(cfg.JWTSecret, followHandler.GetFollowers)),
 ))
 
 mux.HandleFunc("/following", middleware.CORSMiddleware(
-    middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(followHandler.GetFollowing)),
+    middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(cfg.JWTSecret, followHandler.GetFollowing)),
 ))
 
 	//Start the server

@@ -13,7 +13,7 @@ type contextKey string
 
 const UserIDKey contextKey = "user_id"
 
-func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
+func AuthMiddleware(secret string, next http.HandlerFunc) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 
@@ -32,7 +32,7 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 		tokenString := parts[1]
 
-		token, err := auth.ValidateToken(tokenString)
+		token, err := auth.ValidateToken(tokenString, secret)
 		if err != nil || !token.Valid {
 			http.Error(w, "Invalid token", http.StatusUnauthorized)
 			return

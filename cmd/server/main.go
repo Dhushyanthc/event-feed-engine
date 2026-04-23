@@ -83,33 +83,49 @@ func main() {
 	mux := http.NewServeMux()
 
 	//Register route
-	mux.HandleFunc("/users", middleware.LoggingMiddleware(zapLogger, userHandler.CreateUser))
+	mux.HandleFunc("/users", middleware.CORSMiddleware(
+    middleware.LoggingMiddleware(zapLogger, userHandler.CreateUser),
+))
 
-	mux.HandleFunc("/login", rateLimiter(
-		middleware.LoggingMiddleware(zapLogger,
-			loginHandler.Login,
-		),
-	),)
+mux.HandleFunc("/login", middleware.CORSMiddleware(
+    rateLimiter(
+        middleware.LoggingMiddleware(zapLogger,
+            loginHandler.Login,
+        ),
+    ),
+))
 
-	mux.HandleFunc("/posts", rateLimiter(
-		middleware.LoggingMiddleware(zapLogger,
-			middleware.AuthMiddleware(postHandler.CreatePost),
-		),
-	),)
+mux.HandleFunc("/posts", middleware.CORSMiddleware(
+    rateLimiter(
+        middleware.LoggingMiddleware(zapLogger,
+            middleware.AuthMiddleware(postHandler.CreatePost),
+        ),
+    ),
+))
 
-	mux.HandleFunc("/feed", middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(feedHandler.GetFeed)))
+mux.HandleFunc("/feed", middleware.CORSMiddleware(
+    middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(feedHandler.GetFeed)),
+))
 
-	mux.HandleFunc("/follow", rateLimiter(
-		middleware.LoggingMiddleware(zapLogger,
-			middleware.AuthMiddleware(followHandler.FollowUser),
-		),
-	),)
+mux.HandleFunc("/follow", middleware.CORSMiddleware(
+    rateLimiter(
+        middleware.LoggingMiddleware(zapLogger,
+            middleware.AuthMiddleware(followHandler.FollowUser),
+        ),
+    ),
+))
 
-	mux.HandleFunc("/unfollow", middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(followHandler.UnfollowUser)))
+mux.HandleFunc("/unfollow", middleware.CORSMiddleware(
+    middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(followHandler.UnfollowUser)),
+))
 
-	mux.HandleFunc("/followers", middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(followHandler.GetFollowers)))
+mux.HandleFunc("/followers", middleware.CORSMiddleware(
+    middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(followHandler.GetFollowers)),
+))
 
-	mux.HandleFunc("/following", middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(followHandler.GetFollowing)))
+mux.HandleFunc("/following", middleware.CORSMiddleware(
+    middleware.LoggingMiddleware(zapLogger, middleware.AuthMiddleware(followHandler.GetFollowing)),
+))
 
 	//Start the server
 	zapLogger.Info("Starting server", zap.String("port", cfg.Port))
